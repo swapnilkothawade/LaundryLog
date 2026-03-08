@@ -1,0 +1,48 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ==================== USERS ====================
+    // Users can only read/write their own profile
+    match /users/{userId} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow create: if request.auth != null && request.auth.uid == userId;
+      allow update: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // ==================== HOUSEHOLDS ====================
+    match /households/{householdId} {
+      // Any authenticated user can read a household (needed for join by invite code)
+      allow read: if request.auth != null;
+      // Any authenticated user can create a household
+      allow create: if request.auth != null;
+      // Only household members can update
+      allow update: if request.auth != null
+        && request.auth.uid in resource.data.members;
+
+      // ==================== CLOTH TYPES (subcollection) ====================
+      match /clothTypes/{clothTypeId} {
+        // Only household members can read/write cloth types
+        allow read: if request.auth != null
+          && request.auth.uid in get(/databases/$(database)/documents/households/$(householdId)).data.members;
+        allow create, update, delete: if request.auth != null
+          && request.auth.uid in get(/databases/$(database)/documents/households/$(householdId)).data.members;
+      }
+
+      // ==================== LAUNDRY ENTRIES (subcollection) ====================
+      match /entries/{entryId} {
+        // Only household members can read/write entries
+        allow read: if request.auth != null
+          && request.auth.uid in get(/databases/$(database)/documents/households/$(householdId)).data.members;
+        allow create, update, delete: if request.auth != null
+          && request.auth.uid in get(/databases/$(database)/documents/households/$(householdId)).data.members;
+      }
+    }
+
+    // Deny everything else
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
